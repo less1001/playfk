@@ -2,63 +2,70 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Good Old Tetris - Pixel Perfect</title>
+    <!-- 视口设置，禁止缩放，确保移动端全屏体验 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Good Old Tetris - Fullscreen</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap');
 
         :root {
             --case-color: #f2cf42;
             --lens-black: #181818;
-            --housing-color: #dcc035; /* 屏幕外圈的斜面黄 */
+            --housing-color: #dcc035;
             --lcd-bg: #9ead86;     
             --pixel-off: #8c9a74;
             --pixel-on: #111;
             --btn-blue: #5b6ee1;
             --btn-blue-shadow: #3242a6;
             
-            /* 核心尺寸定义 - 方便统一修改 */
-            /* 18px * 20行 = 360px 高度 */
-            /* 18px * 10列 = 180px 宽度 */
-            --block-size: 18px;
-            --board-w: 180px;
-            --board-h: 360px;
+            /* 基础设计尺寸 */
+            --base-width: 460px;
+            --base-height: 780px;
         }
 
         * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
 
         body {
-            background-color: #3a8d86;
+            background-color: #2c6b65; /* 背景稍微深一点，突出机器 */
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden; /* 禁止滚动 */
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            overflow: hidden;
             font-family: 'VT323', monospace;
+            /* 禁用默认触摸动作，防止iOS回弹 */
+            touch-action: none; 
         }
 
         /* --- 外壳 --- */
         .game-boy {
+            /* 固定基础设计尺寸，依靠 transform 进行缩放 */
+            width: var(--base-width);
+            height: var(--base-height);
             background-color: var(--case-color);
-            width: 460px;  /*稍微收窄一点，更精致*/
-            height: 780px;
             border-radius: 20px 20px 50px 50px;
             padding: 25px;
             box-shadow: 
                 inset 4px 4px 10px rgba(255,255,255,0.4),
-                inset -4px -4px 10px rgba(0,0,0,0.1),
-                20px 25px 50px rgba(0,0,0,0.3);
+                inset -4px -4px 10px rgba(0,0,0,0.15),
+                0px 0px 50px rgba(0,0,0,0.5); /* 外部阴影加深 */
             position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
+            /* 默认隐藏，等JS计算完缩放再显示，防止闪烁 */
+            visibility: hidden;
+            transform-origin: center center;
         }
 
         /* --- 黑色玻璃框 (Lens) --- */
         .lens-area {
             width: 100%;
             background-color: var(--lens-black);
-            border-radius: 12px 12px 40px 12px; /* 经典的非对称圆角 */
+            border-radius: 12px 12px 40px 12px;
             padding: 15px 30px 35px 30px;
             display: flex;
             flex-direction: column;
@@ -68,7 +75,6 @@
             z-index: 5;
         }
 
-        /* 顶部条纹装饰 */
         .lens-header {
             width: 100%;
             display: flex;
@@ -94,7 +100,6 @@
             border-radius: 4px 4px 20px 4px;
             box-shadow: inset 2px 2px 6px rgba(0,0,0,0.3);
             width: 100%;
-            /* 关键：防止内部内容溢出画到黑色区域上 */
             overflow: hidden; 
         }
 
@@ -102,7 +107,6 @@
         .lcd-screen {
             background-color: var(--lcd-bg);
             width: 100%;
-            /* 这里高度必须足够容纳 20行 * 18px = 360px */
             height: 360px; 
             border: 2px solid #758262;
             display: flex;
@@ -110,42 +114,35 @@
             box-shadow: inset 3px 3px 8px rgba(0,0,0,0.15);
         }
 
-        /* --- 游戏区 (Canvas) --- */
+        /* --- 游戏区 --- */
         .game-container {
-            width: var(--board-w);
-            height: var(--board-h);
+            width: 180px; /* 10 * 18px */
+            height: 360px; /* 20 * 18px */
             border-right: 2px solid #758262;
             position: relative;
         }
 
-        /* CSS绘制的网格背景 (Pixel Perfect) */
         .grid-bg {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            /* 18px 的网格 */
             background-image: 
                 linear-gradient(var(--pixel-off) 1px, transparent 1px),
                 linear-gradient(90deg, var(--pixel-off) 1px, transparent 1px);
-            background-size: var(--block-size) var(--block-size);
-            background-position: -1px -1px; /* 微调对齐线 */
+            background-size: 18px 18px;
+            background-position: -1px -1px;
             opacity: 0.6;
             z-index: 0;
         }
-        /* 模拟空心方块 */
         .grid-bg::after {
             content: "";
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background-image: radial-gradient(rgba(0,0,0,0.05) 15%, transparent 16%);
-            background-size: var(--block-size) var(--block-size);
+            background-size: 18px 18px;
             background-position: center;
         }
 
-        canvas#tetris {
-            display: block;
-            position: relative;
-            z-index: 10;
-        }
+        canvas#tetris { display: block; position: relative; z-index: 10; }
 
         /* --- 侧边栏 --- */
         .sidebar {
@@ -160,53 +157,21 @@
         .stat-label { font-size: 14px; color: #333; font-weight: bold; margin-bottom: 0px; opacity: 0.8; text-transform: uppercase;}
         .stat-value { font-size: 22px; text-align: right; letter-spacing: 1px; font-weight: bold; line-height: 1.2;}
 
-        .next-preview {
-            width: 54px; /* 3 * 18px */
-            height: 36px;
-            margin-left: auto;
-            margin-top: 5px;
-        }
-
-        .status-footer {
-            margin-top: auto;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            font-size: 18px;
-            opacity: 0.7;
-        }
+        .next-preview { width: 54px; height: 36px; margin-left: auto; margin-top: 5px; }
+        .status-footer { margin-top: auto; display: flex; justify-content: flex-end; align-items: center; font-size: 18px; opacity: 0.7; }
 
         /* --- 装饰方块 --- */
-        .deco-side {
-            position: absolute;
-            top: 120px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
+        .deco-side { position: absolute; top: 120px; display: flex; flex-direction: column; gap: 12px; }
         .deco-left { left: 6px; }
         .deco-right { right: 6px; }
-        .d-blk {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
-        }
+        .d-blk { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
         .b-on { width: 8px; height: 8px; background: #111; }
         .b-off { width: 8px; height: 8px; border: 1px solid #333; }
 
         /* --- 控制区 --- */
-        .controls {
-            width: 100%;
-            flex: 1;
-            position: relative;
-            margin-top: 30px;
-        }
+        .controls { width: 100%; flex: 1; position: relative; margin-top: 30px; }
 
-        /* 功能键 */
-        .small-btns {
-            display: flex;
-            gap: 18px;
-            position: absolute;
-            top: 0; left: 15px;
-        }
+        .small-btns { display: flex; gap: 18px; position: absolute; top: 0; left: 15px; }
         .s-btn-wrap { display: flex; flex-direction: column; align-items: center; }
         .s-btn {
             width: 30px; height: 30px; border-radius: 50%; border: none;
@@ -218,16 +183,8 @@
         .red { background: #E53935; }
         .s-lbl { font-size: 10px; font-weight: bold; color: #222; font-family: sans-serif; }
 
-        /* 大按钮 */
-        .pad-area {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-top: 70px;
-            padding: 0 10px;
-        }
+        .pad-area { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 70px; padding: 0 10px; }
         
-        /* Drop Button */
         .drop-btn-wrap { position: relative; margin-left: 10px; }
         .big-btn {
             width: 100px; height: 100px; border-radius: 50%;
@@ -238,13 +195,7 @@
         .big-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--btn-blue-shadow); }
         .drop-lbl { position: absolute; bottom: -30px; width: 100%; text-align: center; font-weight: bold; color: #222; font-size: 14px; font-family: sans-serif;}
 
-        /* D-Pad */
-        .dpad {
-            display: grid;
-            grid-template-columns: 50px 50px 50px;
-            grid-template-rows: 50px 50px 50px;
-            margin-right: 5px;
-        }
+        .dpad { display: grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px 50px; margin-right: 5px; }
         .d-btn {
             width: 48px; height: 48px; border-radius: 50%;
             background: var(--btn-blue); border: none;
@@ -264,7 +215,6 @@
         .right .d-lbl { bottom: -20px; left: 5px; }
         .down .d-lbl { bottom: -20px; left: 8px; }
 
-        /* Arrows */
         .arrows { grid-column: 2; grid-row: 2; position: relative; }
         .tri { position: absolute; width: 0; height: 0; border-style: solid; }
         .t-u { border-width: 0 4px 6px 4px; border-color: transparent transparent #111 transparent; top: 5px; left: 21px; }
@@ -277,7 +227,7 @@
 <body>
 
 <div class="game-boy">
-    <!-- 侧边装饰点 -->
+    <!-- 装饰点 -->
     <div class="deco-side deco-left">
         <div class="d-blk"><div class="b-on"></div><div class="b-on"></div><div class="b-off"></div><div class="b-on"></div></div>
         <div class="d-blk"><div class="b-on"></div><div class="b-on"></div><div class="b-on"></div><div class="b-on"></div></div>
@@ -303,7 +253,6 @@
             <div class="lcd-screen">
                 <div class="game-container">
                     <div class="grid-bg"></div>
-                    <!-- 180px x 360px Canvas -->
                     <canvas id="tetris" width="180" height="360"></canvas>
                 </div>
 
@@ -334,21 +283,12 @@
         </div>
     </div>
 
-    <!-- 底部按钮 -->
+    <!-- 控制区 -->
     <div class="controls">
         <div class="small-btns">
-            <div class="s-btn-wrap">
-                <button class="s-btn green" id="btn-pause"></button>
-                <span class="s-lbl">Pause(P)</span>
-            </div>
-            <div class="s-btn-wrap">
-                <button class="s-btn green" id="btn-sound"></button>
-                <span class="s-lbl">Sound(S)</span>
-            </div>
-            <div class="s-btn-wrap">
-                <button class="s-btn red" id="btn-reset"></button>
-                <span class="s-lbl">Reset(R)</span>
-            </div>
+            <div class="s-btn-wrap"><button class="s-btn green" id="btn-pause"></button><span class="s-lbl">Pause(P)</span></div>
+            <div class="s-btn-wrap"><button class="s-btn green" id="btn-sound"></button><span class="s-lbl">Sound(S)</span></div>
+            <div class="s-btn-wrap"><button class="s-btn red" id="btn-reset"></button><span class="s-lbl">Reset(R)</span></div>
         </div>
 
         <div class="pad-area">
@@ -373,24 +313,45 @@
 
 <script>
     /**
-     * 游戏核心逻辑
-     * 修正重点：BlockSize 18px，总高度 360px，完美对齐
+     * 屏幕自适应缩放逻辑
+     */
+    function fitToScreen() {
+        const gameBoy = document.querySelector('.game-boy');
+        const padding = 10; // 留一点小边距
+        const availableWidth = window.innerWidth - padding;
+        const availableHeight = window.innerHeight - padding;
+        
+        const baseWidth = 460;
+        const baseHeight = 780;
+
+        // 计算缩放比例
+        const scale = Math.min(
+            availableWidth / baseWidth,
+            availableHeight / baseHeight
+        );
+
+        gameBoy.style.transform = `scale(${scale})`;
+        gameBoy.style.visibility = 'visible'; // 计算完后再显示
+    }
+
+    window.addEventListener('resize', fitToScreen);
+    window.addEventListener('load', fitToScreen);
+
+    /**
+     * Tetris Logic
      */
     const canvas = document.getElementById('tetris');
     const ctx = canvas.getContext('2d');
     const nextCanvas = document.getElementById('next');
     const nextCtx = nextCanvas.getContext('2d');
 
-    const BLOCK_SIZE = 18; // 核心尺寸
-    const DRAW_SIZE = 16;  // 实际绘制大小 (留2px间隙)
-    
-    // 预览窗口缩放
+    const BLOCK_SIZE = 18; 
+    const DRAW_SIZE = 16;  
     nextCtx.scale(14, 14);
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let soundEnabled = true;
 
-    // 简单音效合成
     function playSound(type) {
         if (!soundEnabled || audioCtx.state === 'suspended') {
             if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -431,7 +392,6 @@
         'Z': [[7,7,0],[0,7,7],[0,0,0]]
     };
 
-    // 初始化
     const arena = createMatrix(10, 20);
     const player = { pos: {x:0, y:0}, matrix:null, next:null };
     let dropCounter = 0, dropInterval = 1000, lastTime = 0;
@@ -467,21 +427,15 @@
     }
 
     function draw() {
-        // 清空 (全透明，露出CSS网格)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // 绘制 Arena
         drawMatrix(arena, {x:0, y:0}, ctx);
-
-        // 绘制 Ghost
+        
         if (!isPaused && !isGameOver) {
             const ghost = { ...player.pos };
             while (!collide(arena, {pos:ghost, matrix:player.matrix})) ghost.y++;
             ghost.y--;
             if (ghost.y !== player.pos.y) drawMatrix(player.matrix, ghost, ctx, true);
         }
-
-        // 绘制 Player
         drawMatrix(player.matrix, player.pos, ctx);
     }
 
@@ -489,19 +443,15 @@
         matrix.forEach((row, y) => {
             row.forEach((val, x) => {
                 if (val !== 0) {
-                    // 精确坐标计算
                     const px = (x + offset.x) * BLOCK_SIZE;
                     const py = (y + offset.y) * BLOCK_SIZE;
                     const gap = (BLOCK_SIZE - DRAW_SIZE) / 2;
-
                     if (isGhost) {
                         context.fillStyle = 'rgba(17,17,17,0.15)';
                         context.fillRect(px+1, py+1, BLOCK_SIZE-2, BLOCK_SIZE-2);
                     } else {
                         context.fillStyle = '#111';
-                        // 绘制主体 16px (18-2)
                         context.fillRect(px+gap, py+gap, DRAW_SIZE, DRAW_SIZE);
-                        // 内部高光点 (增强LCD质感)
                         context.fillStyle = '#333';
                         context.fillRect(px+gap+3, py+gap+3, DRAW_SIZE-6, DRAW_SIZE-6);
                     }
@@ -515,7 +465,7 @@
         if(!player.next) return;
         const m = player.next.matrix;
         const ox = (4 - m[0].length)/2;
-        const oy = (3 - m.length)/2; // 稍微修正居中
+        const oy = (3 - m.length)/2; 
         m.forEach((row, y) => {
             row.forEach((val, x) => {
                 if(val) {
@@ -646,7 +596,6 @@
         update();
     }
 
-    // 绑定事件
     document.addEventListener('keydown', e => {
         if(isGameOver && e.keyCode === 82) { resetGame(); return; }
         if(e.keyCode === 80) { isPaused=!isPaused; if(!isPaused) update(); return; }
@@ -663,7 +612,8 @@
     function bind(id, action) {
         const btn = document.getElementById(id);
         const h = (e) => { e.preventDefault(); if(audioCtx.state==='suspended') audioCtx.resume(); action(); };
-        btn.addEventListener('mousedown', h); btn.addEventListener('touchstart', h);
+        // 使用 touchstart 提高移动端响应速度，避免延迟
+        btn.addEventListener('mousedown', h); btn.addEventListener('touchstart', h, {passive: false});
     }
     bind('btn-left', ()=>!isPaused&&!isGameOver&&playerMove(-1));
     bind('btn-right', ()=>!isPaused&&!isGameOver&&playerMove(1));
